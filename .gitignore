@@ -480,3 +480,34 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# 1. Use the official .NET 9 ASP.NET runtime as the base image
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+WORKDIR /app
+# Render routes traffic automatically, but .NET 9 defaults to port 8080
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+
+# 2. Use the .NET 9 SDK image to build the application
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy the project file and restore dependencies
+# Note: Adjust the path if your folder structure is named differently
+COPY ["PortfolioAPI/PortfolioAPI.csproj", "PortfolioAPI/"]
+RUN dotnet restore "PortfolioAPI/PortfolioAPI.csproj"
+
+# Copy the remaining source code and build
+COPY . .
+WORKDIR "/src/PortfolioAPI"
+RUN dotnet build "PortfolioAPI.csproj" -c Release -o /app/build
+
+# 3. Publish the application
+FROM build AS publish
+RUN dotnet publish "PortfolioAPI.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# 4. Final stage: copy published files and set the entrypoint
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "PortfolioAPI.dll"]
