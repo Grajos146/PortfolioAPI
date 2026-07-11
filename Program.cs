@@ -26,8 +26,12 @@ builder.Services.AddValidatorsFromAssemblyContaining<ContactMessageDtoValidator>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(
-        "AllowFrontend",
-        policy => policy.WithOrigins("https://grajos-portfolio.netlify.app/").AllowAnyMethod().AllowAnyHeader()
+        "AllowPortfolioUI",
+        policy =>
+            policy
+                .WithOrigins("https://grajos-portfolio.netlify.app/")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
     );
 });
 
@@ -52,7 +56,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-app.UseCors("AllowFrontend");
+app.UseCors("AllowPortfolioUI");
 app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
