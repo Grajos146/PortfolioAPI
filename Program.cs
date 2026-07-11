@@ -29,7 +29,7 @@ builder.Services.AddCors(options =>
         "AllowPortfolioUI",
         policy =>
             policy
-                .WithOrigins("https://grajos-portfolio.netlify.app/")
+                .WithOrigins("https://grajos-portfolio.netlify.app")
                 .AllowAnyMethod()
                 .AllowAnyHeader()
     );
