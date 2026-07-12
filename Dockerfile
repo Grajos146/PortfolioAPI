@@ -7,8 +7,8 @@ ENV ASPNETCORE_URLS=http://+:8080
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY ["PortfolioAPI.csproj", "PortfolioAPI/"]
-RUN dotnet restore "PortfolioAPI.csproj"
+COPY ["PortfolioAPI/PortfolioAPI.csproj", "PortfolioAPI/"]
+RUN dotnet restore "PortfolioAPI/PortfolioAPI.csproj"
 
 COPY . .
 WORKDIR "/src/PortfolioAPI"
