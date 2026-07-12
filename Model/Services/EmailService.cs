@@ -1,109 +1,66 @@
+using System.Text.Json;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 
 namespace PortfolioAPI.Model.Services;
 
-public class EmailService(IConfiguration configuration)
+public class EmailService(IConfiguration configuration, ILogger<EmailService> logger)
 {
     private readonly IConfiguration _configuration = configuration;
+    private readonly ILogger<EmailService> _logger = logger;
 
     public async Task SendContactEmailAsync(string name, string email, string message)
     {
-        var settings = _configuration.GetSection("EmailSettings");
-
-        string? senderEmail = settings["SenderEmail"];
-        string? senderPassword = settings["SenderPassword"];
-        string? recipientEmail = settings["RecipientEmail"];
-        string? smtpServer = settings["SmtpServer"];
-        string? appName = settings["AppName"];
-
-        var emailMessage = new MimeMessage();
-        emailMessage.From.Add(new MailboxAddress(appName, senderEmail!));
-        emailMessage.To.Add(new MailboxAddress(appName, recipientEmail!));
-        emailMessage.ReplyTo.Add(new MailboxAddress(name, email));
-        emailMessage.Subject = $"New Contact Message from {name}";
-        emailMessage.Body = new TextPart("plain") { Text = $"From: {name} ({email})\n\n{message}" };
-
-        //declaring a fallback port if 587 fails to connect, as some ISPs block this port. The fallback port is 465.
-        int primaryPort = int.Parse(settings["SmtpPort"]!);
-        const int fallbackPort = 465;
-
-        var portsToTry = new[]
+        try
         {
-            new
+            var apiKey = _configuration["BrevoApiKey"];
+            var senderEmail = _configuration["SenderEmail"];
+            var recipientEmail = _configuration["RecipientEmail"];
+
+            var emailPayload = new
             {
-                Port = primaryPort,
-                Options = primaryPort == 465
-                    ? SecureSocketOptions.SslOnConnect
-                    : SecureSocketOptions.StartTls,
-            },
-            new
+                sender = new { email = senderEmail, name = "Portfolio Contact" },
+                to = new[] { new { email = recipientEmail } },
+                subject = $"New Contact Message from {name}",
+                htmlContent = $@"
+                    <h3>New Contact Message</h3>
+                    <p><strong>From:</strong> {name}</p>
+                    <p><strong>Email:</strong> {email}</p>
+                    <p><strong>Message:</strong></p>
+                    <p>{message}</p>
+                ",
+            };
+
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("api-key", apiKey);
+
+            var jsonBody = JsonSerializer.Serialize(emailPayload);
+            using var content = new StringContent(
+                jsonBody,
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await client.PostAsync("https://api.brevo.com/v3/smtp/email", content);
+
+            if (!response.IsSuccessStatusCode)
             {
-                Port = fallbackPort,
-                Options = fallbackPort == 465
-                    ? SecureSocketOptions.SslOnConnect
-                    : SecureSocketOptions.StartTls,
-            },
-        };
-
-        // checking if delivery is successful
-        bool isDeliverySuccessful = false;
-
-        List<string> errorLogs = [];
-
-        foreach (var port in portsToTry)
-        {
-            try
-            {
-                Console.WriteLine($"Attempting to send email using port {port.Port}...");
-
-                using var client = new SmtpClient();
-
-                client.Timeout = 8000; // Set a timeout of 8 seconds
-
-                await client.ConnectAsync(smtpServer!, port: port.Port, options: port.Options);
-                await client.AuthenticateAsync(senderEmail!, senderPassword!);
-                await client.SendAsync(emailMessage);
-                await client.DisconnectAsync(true);
-
-                isDeliverySuccessful = true;
-                Console.WriteLine($"Email sent successfully using port {port.Port}.");
-                break; // Exit the loop if email is sent successfully
-            }
-            catch (Exception ex)
-            {
-                string warningMessage =
-                    $"Warning: Failed to send email using port {port.Port}. Error: {ex.Message}";
-                errorLogs.Add(warningMessage);
-                Console.WriteLine(warningMessage);
-            }
-
-            if (!isDeliverySuccessful)
-            {
-                const string errorMessage =
-                    "Error: Failed to send email using all available ports.";
-                errorLogs.Add(errorMessage);
-                Console.WriteLine(errorMessage);
+                var responseContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError(
+                    "Failed to send contact email. Status Code: {StatusCode}, Response: {Response}",
+                    response.StatusCode,
+                    responseContent
+                );
+                throw new Exception(
+                    $"Failed to send contact email. Status Code: {response.StatusCode}, Response: {responseContent}"
+                );
             }
         }
-
-        // try
-        // {
-        //     using var client = new SmtpClient();
-        //     await client.ConnectAsync(
-        //         settings["SmtpServer"]!,
-        //         int.Parse(settings["SmtpPort"]!),
-        //         SecureSocketOptions.SslOnConnect
-        //     );
-        //     await client.AuthenticateAsync(settings["SenderEmail"]!, settings["SenderPassword"]!);
-        //     await client.SendAsync(emailMessage);
-        //     await client.DisconnectAsync(true);
-        // }
-        // catch (Exception ex)
-        // {
-        //     // Log the exception (you can use a logging framework like Serilog, NLog, etc.)
-        //     Console.WriteLine($"Error sending email: {ex.Message}");
-        // }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while sending contact email.");
+            throw;
+        }
     }
 }
