@@ -15,8 +15,8 @@ public class EmailService(IConfiguration configuration, ILogger<EmailService> lo
         try
         {
             var apiKey = _configuration["BrevoApiKey"];
-            var senderEmail = _configuration["SenderEmail"];
-            var recipientEmail = _configuration["RecipientEmail"];
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            var recipientEmail = _configuration["EmailSettings:RecipientEmail"];
 
             var emailPayload = new
             {
